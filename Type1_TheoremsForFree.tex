@@ -1,0 +1,131 @@
+\documentclass[12pt]{article}
+\setlength{\oddsidemargin}{27mm}
+\setlength{\evensidemargin}{27mm}
+\setlength{\hoffset}{-1in}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{ stmaryrd }
+
+
+\newcommand{\hask}{\mintinline{haskell}}
+\newcommand{\llb}{\llbracket}
+\newcommand{\rrb}{\rrbracket}
+
+\setlength{\topmargin}{27mm}
+\setlength{\voffset}{-1in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+
+\setlength{\textheight}{235mm}
+\setlength{\textwidth}{155mm}
+
+%\pagestyle{empty}
+\pagestyle{plain}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\renewcommand{\labelitemi}{$\diamond$}
+
+\begin{document}
+\baselineskip 12pt
+
+\begin{center}
+\textbf{\Large Theorems For Free: a Sneak Peek at type theory} \\
+\end{center}
+
+\section{Our Purpose} \label{form}
+Our goal today is to introduce some of the core concepts of type theory, and see how we can apply them in real life.
+Some of the core concepts we will see today are 
+\begin{itemize}
+    \item Syntax/Semantics of type expressions
+    \item Structural type inductions
+    \item Types as relations
+\end{itemize}
+
+\section{Problem Statement}
+Write a function with the signature.
+\begin{minted}{haskell} 
+ident :: forall a. a -> a
+\end{minted}
+In haskell, there is an obvious approach
+
+\begin{minted}{haskell} 
+ident x = x
+\end{minted}
+The key question is, are there any others? 
+What else could you possibly do? 
+Likewise, consider the signature
+\begin{minted}{haskell} 
+class Functor t where 
+  fmap :: forall a b. (a -> b) -> t a -> t b
+\end{minted}
+What should be true of a functor instance? Given an \hask{fmap}, what laws should it satisfy?
+\section{Our type language}
+We won't answer this question for haskell types for several weeks.
+Instead, I want to do what the Theorems For Free paper does.
+Let's start by defining a simple type system, and work with set-functions rather than 
+haskell type systems, and haskell terms.
+This will simplify the problem setting without losing the key idea.
+
+We will consider types that have 
+\begin{itemize}
+    \item a primitive $Int$ and $Bool$. 
+    \item products, written $(a,b)$
+    \item arrows, written $a \rightarrow b$
+    \item lists, written $a^*$
+    \item type parameters, written $\forall a, \mathbf{T} a$
+\end{itemize}
+\noindent This creates a language of types, $\mathcal{T}$. A one naive semantics would be to interpret the types directly as sets.
+These are the terms of a given type:
+\begin{itemize}
+\item $ \llb Int \rrb  = \mathbf{Z}$, $ \llb Int \rrb  = \{T, F\}$
+\item $ \llb (a,b) \rrb  = \llb a \rrb \times \llb b \rrb$ 
+\item $ \llb a \rightarrow b \rrb  =  \llb b \rrb ^{\llb a \rrb}$ 
+\item $ \llb a ^ * \rrb  =  \bigcup_{n \in \mathbb{N}} \llb a \rrb ^n$
+\item $ \llb \forall a, \mathbf{T} a \rrb = \bigcap_{s \in \mathcal{T}} \llb T s \rrb $
+\end{itemize}
+\noindent Sadly this doesn't make sense for the type parameter case.
+\begin{align*}
+    \llb \forall a, a \rightarrow a \rrb & = & \bigcap_{s} \llb s \rightarrow s \rrb \\
+     & \subset & \llb Int \rightarrow Int \rrb \cap \llb Bool \rightarrow Bool \rrb \\
+     & = & Int^{Int} \cap Bool^{Bool} \\
+     & = & \emptyset \\
+\end{align*}
+But we really want there to be a term in $\llb \forall a, a \rightarrow a \rrb$ since its so easy to write one in haskell.
+We can instead consider \"polymorphic functions\", which in this case means something more like a function over powersets since types are interpreted as sets. 
+The exact details of this is not that important, since when we revisit this with a real type system it will be unambiguous.
+
+So fine, we know what the terms are. 
+But that doesn't help us answer our questions.
+Instead, we do something terribly clever. We interpret types into a relation.
+
+\begin{itemize}
+\item $ \llb Int \rrb  = \{(x,x) \;|\; x \in \mathbf{Z}\}$, $ \llb Bool \rrb  = \{(x,x) \;|\; x \in \{\mathbf{T, F}\}\}$, 
+\item $ \llb (a,b) \rrb  = \{ ((a,b), (x,y)) \;|\; (a,x) \in \llb a \rrb \land (b,y) \in \llb b \rrb \}$ 
+\item $ \llb a \rightarrow b \rrb  = \{ (f,g) \; | \; 
+    \forall (x,y) \in \llb a \rrb, (f(x), g(y)) \in  \llb b \rrb \}$ 
+\item $ \llb a ^ * \rrb  =  \bigcup_{n \in \mathbb{N}} \{([a1,...,an],[b1,...,bn]) \;|\; \forall i, (a_i, b_i) \in \llb a \rrb \}$
+\item $ \llb \forall a, \mathbf{T} a \rrb = \{(f,g) \; | \;
+    \forall a,b, R \subset a \times b, 
+      (f_a, g_{b}) \in  \llb \mathbf{T} R \rrb \} $
+\end{itemize}
+Again, type parameters are the interesting case.
+We can think of $f$ and $g$ here as taking an extra set as an argument,
+and the subscript is applying that argument.
+
+The main result we care about is that for all types $a$, and any term $t$, we will find 
+\[
+t \text{ is a term of } a \iff (t,t) \in \llb a \rrb
+\]
+The proof is straightforward, mostly.
+The base case are the primitives, true by definition.
+The case for products and lists follows trivially. 
+For arrows and parameters, consider the following. If $f$ is a term of $a \rightarrow b$, then forall $(a,b) \in \llb a \rrb$, then $a = b$. So $(f(a), f(b)) \in b$, and so $f \in \llb a \rightarrow b \rrb$. 
+
+
+\section{What's next}
+Ok, so now we know that this relation is, what can we say?
+Time to turn to the Theorems for free paper
+
+\end{document}
+
