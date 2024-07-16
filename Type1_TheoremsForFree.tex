@@ -124,8 +124,32 @@ For arrows and parameters, consider the following. If $f$ is a term of $a \right
 
 
 \section{What's next}
-Ok, so now we know that this relation is, what can we say?
-Time to turn to the Theorems for free paper
+Let's consider a few examples.
+\subsection{Identity}
+The theorem for free of 
+\[
+  f :: \forall a,\; a \rightarrow a
+\]
+\noindent is
+\[
+  \forall g :: a \rightarrow b, \; f_b \circ g = g \circ f_a
+\]
+Then if we consider $g$ as $const x$, then 
+\[
+  f x = f \circ (\text{const } x) = (\text{const } x) \circ f = x
+\]
+\subsection{Concat}
+The theorem for free of 
+\[
+  f :: \forall a,\; [[a]] \rightarrow [a]
+\]
+\noindent is
+\[
+  \text{concat} \circ \text{fmap } (\text{fmap } f) = 
+  \text{fmap } f \circ \text{concat}
+\]
+The interesting point is that when $f$ is $\text{const ()}$, we see that on the left hand doesn't depend on the values in the list.
+so the right had side shouldn't either
 
 \end{document}
 

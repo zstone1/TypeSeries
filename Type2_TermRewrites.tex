@@ -1,0 +1,164 @@
+
+\documentclass[12pt]{article}
+\setlength{\oddsidemargin}{27mm}
+\setlength{\evensidemargin}{27mm}
+\setlength{\hoffset}{-1in}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{ stmaryrd }
+
+
+\newcommand{\hask}{\mintinline{haskell}}
+\newcommand{\llb}{\llbracket}
+\newcommand{\rrb}{\rrbracket}
+
+\setlength{\topmargin}{27mm}
+\setlength{\voffset}{-1in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+
+\setlength{\textheight}{235mm}
+\setlength{\textwidth}{155mm}
+
+%\pagestyle{empty}
+\pagestyle{plain}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\renewcommand{\labelitemi}{$\diamond$}
+
+\begin{document}
+\baselineskip 12pt
+
+\begin{center}
+\textbf{\Large Term Rewrite Systems} \\
+\end{center}
+
+\section{What is a rewrite system?}
+A rewrite system has two features.
+Firstly, a set of terms. Secondly a relation from terms to terms. That's it. 
+We typically notate them in the following way.
+Consider a set of terms $\{\textbf{A},\textbf{B},\textbf{C}\}^*$.
+That is, finite sequences of A, B, and C.
+A simple rule set, which we'll call Simple.
+\begin{description}
+    \item $\textbf{AB} \rightarrow \textbf{C}$
+\end{description}
+
+These mean that there's for any term $x$ where \textbf{AB} appears as a subsequence, 
+$x$ is related to $x$ with \textbf{AB} replaced by \textbf{C}.
+
+
+\subsection{Normal Forms}
+This system has several features we should already discuss.
+We will often use graph terminology here, where each node is a term, and each rule adds some edges. 
+Note the edges are directed.
+Consider the term \textbf{C}.
+This term has 0 outdegree, in other words, no rules apply to it.
+We call such a term a \textit{normal form}. 
+We also define the $\rightarrow^*$ relation which is the transitive, reflexive closure.
+That is, paths through this graph.
+In general, we say that \textbf{CC} is a normal form of \textbf{ABAB} because
+\textbf{ABAB} $\rightarrow^*$ \textbf{CC}
+
+For an example of a term that doesn't have a normal form, lets introduce a new rulset which we will call Expander
+\begin{description}
+    \item $\textbf{A} \rightarrow \textbf{AA}$
+\end{description}
+
+\noindent Here, we can see that any term with an \textbf{A} can always have more rules applied. A yet stronger property we sometimes desire is that every path from $x$ eventually reaches a normal form. 
+We say $x$ is \textit{strongly normalizing} or \textit{terminating}.
+
+\subsection{Confluence}
+Sometimes, however, we get choices. Consider the system Brancher
+\begin{description}
+    \item $\textbf{A} \rightarrow \textbf{B}$
+    \item $\textbf{A} \rightarrow \textbf{C}$
+\end{description}
+The term $\textbf{A}$ has two rules that apply to it. 
+Once with pick $\textbf{A} \rightarrow \textbf{B}$, we are stuck with that choice forever.
+
+On the other hand, consider the Simple system, and the term \textbf{ABAB}.
+There is a choice of what rule we apply
+\[
+  \textbf{ABAB} \rightarrow \textbf{ABC} \rightarrow \textbf{CC}
+\]
+But also
+\[
+  \textbf{ABAB} \rightarrow \textbf{CAB} \rightarrow \textbf{CC}
+\]
+
+This is a slightly more favorable system. Even though we have choices, the choices don't matter. 
+This is is called confluence. 
+Formally, a term $a$ is weakly confluence if we have 
+\[
+\forall b,c,\;  a \rightarrow^* b \land a \rightarrow^* c \Rightarrow \exists d,\; b \rightarrow^* d \land c \rightarrow^* d
+\]
+That is, if you ever make a choice, you can always get back to the same point eventually.
+
+The Simple system has a somewhat stronger property than that, though. That is,
+\[
+\forall b,c,\;  a \rightarrow b \land a \rightarrow c \Rightarrow \exists d,\; b \rightarrow^* d \land (c \rightarrow d \lor c = d)
+\]
+in other words, if we deviate by one step, then things are fixable in one step (or zero).
+
+\subsection{Confluence and Normalizing}
+Confluence is nice, but it doesn't guarantee that you know how to pick that $d$. 
+In fact, deciding what the correct "evaluation strategy" AKA path through the graph, is impossible in general.
+But sometimes we are in a wonderful setting where every term has a normal form, and every term is confluence, normal forms are unique!
+
+To see that, consider a term $x$, first observe that normal forms are unique.
+If $y$ and $z$ are normal forms, then 
+\[
+x \rightarrow^* y \text{  and  } x \rightarrow^*z
+\]
+But there are no out edges, so for there to be a $d$ where
+\[
+y \rightarrow^* d \text{  and  } z \rightarrow^* d
+\]
+both paths must be length 0. In other words $y = d = z$.
+
+\section{Who cares?}
+Confluence is an nice setting because evaluations either run forever, or stop at a unique value.
+In other words, there is a function from normalizing terms to their normal form. 
+
+From a language design perspective, this is extremely desirable because it means your programs are "defined".
+
+Many important rewrite systems fail this:
+\begin{enumerate}
+    \item Compiler optimizations are rewrite systems but the order of passes changes the final program! No obvious way to run to a fixpoint
+    \item Macros are basically rewrite systems, but often order of application matters.
+\end{enumerate}
+
+It does not, however, give you a computational strategy. Consider the system Mixed
+\begin{description}
+    \item $\textbf{A} \rightarrow \textbf{B}$
+    \item $\textbf{B} \rightarrow \textbf{A}$
+    \item $\textbf{A} \rightarrow \textbf{C}$
+\end{description}
+There is an infinite sequence of rewrites you could run
+\[
+  \textbf{A} \rightarrow \textbf{B}\rightarrow \textbf{A} \rightarrow ...
+\]
+Or you could do
+\[
+  \textbf{A} \rightarrow \textbf{C}
+\]
+Or even
+\[
+  \textbf{A} \rightarrow \textbf{B}\rightarrow \textbf{A} \rightarrow \textbf{C}
+\]
+So even though there is a normal form, it's not always clear how to reach it.
+
+Now, if our system is both strongly normalizing and weakly confluent, we have the best case.
+\begin{enumerate}
+    \item every term has a normal form
+    \item that normal form is unique
+    \item every evaluation strategy eventually ends at that normal form
+\end{enumerate}
+
+Naturally, a system with these properties is restricted in important ways.
+It can't be turing complete, after all.
+So finally we can start down our intended path.
+We are building a framework to make tradeoffs between expressibility, and analyzability in general terms.
+\end{document}
