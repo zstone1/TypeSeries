@@ -69,30 +69,27 @@ We saw last time that being able to show there is some function
 \]
 is ideal.
 That is, a way to syntactically tell how many more substitutions we'll have to make to get to our normal form.
+Merely counting the applications would be great, but it doesn't actually satisfy this since the substitution can duplicate terms.
+So we'll need something slightly more nuanced, but honestly not much.
 
-In this form, merely counting the applications would be great, but it doesn't actually satisfy this since the substitution can duplicate terms.
-But the idea of stratifying terms is a good idea.
-
-\section{Types: A stratification technique}
-We will use types to stratify lambda terms.
+\section{Types: summarizing terms}
 What's a type? 
 A type system is a triple of a target language, a set of 'types terms', and a relation from terms (plus contexts) to types.
 The types are a set $\mathbf{T}$
 \begin{enumerate}
-    \item $N \in \mathbf{T}$
+    \item $N \in \mathbf{T}$ (Just a group type, pick whatever you want)
     \item $t_1, t_2 \in \mathbf{T} \text{ implies } t_1 \rightarrow t_2 \in \mathbf{T}$
 \end{enumerate}
-And we will define the annotated lambda terms as
-And the terms $\mathbf{A}$ are a cousin of lambda calculus with annotations.
+And we will define the annotated lambda terms $\mathbf{A}$ as
 
 \begin{enumerate}
     \item $0,1,... \in \mathbf{A}$ (or whatever constants you want)
     \item $x,y,... \in \mathbf{A}$
     \item $e \in \mathbf{A}, t \in \mathbf{T}$ implies $\lambda x:t.\, e \in \mathbf{A}$
-    \item $e_1, e_2 \in \mathbf{A}$ implies $e_1\, e_2 \mathbf{A}$
+    \item $e_1, e_2 \in \mathbf{A}$ implies $e_1\, e_2 \in \mathbf{A}$
 \end{enumerate}
 
-So far we have not done anything useful. 
+So far we have not done anything useful.
 We added some explicit constants, and type annotations. 
 But haven't put any restrictions yet.
 I haven't even told you what the terms of the simply typed lambda calculus are yet!
@@ -167,13 +164,28 @@ It's often convenient to represent 'evidience of well-typedness' as a tree.
 Trees grow up in type theory.
 Here is such a tree that witnesses the well-typedness of the term at the bottom.
 So, a term is well-typed when it has a proof tree that ends in empty lines on all branches. 
-We can do two things now.
 
-First, we define the simply typed lambda calculus to be a rewrite system where, the terms are the well-typed members of the annotated lambda calculus, and its rewrite rule is $\beta$ (trivially changed to accomidate the annotations by ignoring them).
+First, we define the Simply Typed Lambda Calculus (STLC) to be the rewrite system where, the terms are the well-typed members of the annotated lambda calculus, and its rewrite rule is $\beta'$ (trivially changed to accomidate the annotations by ignoring them).
 
-We can also ask some questions about these trees.
-One natural question is, are there multiple trees for the same judgement? 
-If only we had a sledgehammer theorem about uniquness results we could apply...
+For this to be sane, we need to verify that if 
+\[
+  e_1 \xrightarrow[\beta']{} e_2
+\]
+And $e_1$ is well-typed, then so is $e_2$.
+Unpacking a bit, this boils down to 
+\[
+  \vdash (\lambda (x:t).\, e_1) e_2 : u \text{ implies }
+  \vdash e_1[ x := e_2] : u
+\]
+Further unpacking yields the relevent lemma
+\[
+  (x : t) \vdash e_1 : u \;\land\; \vdash e_2 : t \text{ implies } \vdash e_1 [x := e_2] : u
+\]
+which is a trivial induction 
+\\\newline
+Furthermore, this rewrite system is confluent since it embeds in lambda calculus.
+Annoyingly we added these annotations, so it's not literally just an application of confluence for lambda calculus.
+But it is pretty simple, and left as an exercise.
 
 \section{Judgements as a rewrite system}
 Here's where things get fun.
@@ -182,47 +194,34 @@ We have spent the last few weeks discussing how to ask good questions about lang
 So we can think about judgements themselves as a kind of rewrite system!
 But we have to be careful due to the having more than one precondition sometimes.
 So we can thing of it as a rewrite system on finite sets of judgements.
-Or we can think of it as rewrite systems on proof trees.
-
-We will formalize it the first way, but the visual of the tree is extremely useful.
+Or we can think of it as rewrite systems on proof trees. We will formalize it the first way, but the visual of the tree is extremely useful.
 
 We have a standard set of questions to ask about rewrite systems.
 Is it confluent? Is it normalizing?
-Let's start with confluent first, since it will highlight the Big Idea.
 
 \subsection{Confluence}
 We will prove that the simply typed lambda calculus's has the diamond property. 
 That is if $a \rightarrow b$ and $a \rightarrow c$ then there exists a $d$ with $b \rightarrow d$ and $c \rightarrow d$ all in one step.
 
 The key observation is that there's a nice relationship between the recursive definition of the annotated lambda terms, and the judgements.
-That is, given a judgement $\Gamma \vdash x:t$, we know that $x$ has only one of four possible forms. For each form, there is exactly one judgement that can apply!
+That is, given a judgement $\Gamma \vdash x:t$, we know that $x$ has only one of four possible forms. For each form, there is exactly one judgement that can apply! This \textbf{syntax directed reasoning} is part of what makes type theory so useful.
 \\ \newline
 So consider a set 
 \[
   a = \{\Gamma_1\vdash x_1 : t_1,..., \Gamma_n\vdash x_n : t_n \}
 \]
+and suppose $a \rightarrow b$ and $a \rightarrow c$.
 Note each rule applies to only one element at a time.
-So we can consider $i,j$ so $a \rightarrow b$ affected only $i$ and $a \rightarrow b$ affected only $j$.
-If $i = j$, then exactly one rule could apply to $\Gamma_i \vdash x_i:t_i$ based on the variant of $x_i$. So $b = c$.
+So we can consider $i,j$ so $a \rightarrow b$ affected only $i$ and $a \rightarrow c$ affected only $j$.
+If $i = j$, then exactly one rule could apply to $\Gamma_i \vdash x_i:t_i$ based on the variant of $x_i$. So both $a \rightarrow b$ and $a \rightarrow c$ are applications of the same rule. So $b = c$.
 
-If $i \neq j$, then $b$ still has $\Gamma_j \vdash x_j:t_j$ and $c$ still has $\Gamma_i \vdash x_i:t_i$.
-So we can update those terms, and we will get the same term back.
+If $i \neq j$, then $b$ still has $\Gamma_j \vdash x_j:t_j$ as an element, and $c$ still has $\Gamma_i \vdash x_i:t_i$.
+So applying the unique rule for $j$ to $b$ and likewise for $i$ and $c$, we get confluence.
 From a proof tree perspective, if I do work on branch $A$, then work on branch $B$, that's the same as doing work on $B$ then $A$.
 \\ \newline
-
-We know know that our rewrite system is confluent.
-This does not guarantee that there is a unique type for each term.
-This is a trivial proof by induction.
-Consider a well-typed term $e$.
-\begin{enumerate}
-    \item if $e$ is a constant only have one type
-    \item if $e$ is a variable, contexts only have at most one value for each variable.
-    \item if $e = \lambda (x:t).\,y$, then by induction $y$ has a unique type $u$ in the context $x:t$. But then $e$ is exactly $t \rightarrow u$.
-    \item if $e = x\,y$, then by induction $x$ has a unique type $u_1$ and $y$ has a unique type $u_2$.
-    But we know $e$ is well-typed, and only one rewrite can apply to a judgement with $e$, and it requires $u_1 = j_1 \rightarrow j_2$ for some $j_1$ and $j_2$. So $x\,y$ must have type $j_2$. 
-\end{enumerate}
-So thankfully the types are unique as well.
-So a well-typed term has a exactly one type, and exactly one proof tree.
+So now we know that this rewrite system is confluent.
+This does not guarantee that there is a unique type for each term!
+This turns out to be true, but we will deal with it later.
 
 \subsection{Normaliztion}
 The next thing to ask is about normal forms.
@@ -241,17 +240,14 @@ But it's not the one we want, since we it requires the type to be given.
 We need a way to start with a term, and figure out its (unique) type.
 There's a nuanced way, where we build the tree up from its terminal leaves.
 And there's a brute force way. Let's do that instead.
-\begin{enumerate}
-    \item For a given $n$, observe that there are only finitely many types with less than $n$ arrows.
-    \item  $x\, y$ has strictly fewer arrows than $x$ type
-    \item  $\lambda (x:t).\, y$ has at worst the sum of arrows in $t$ and arrows in $y$ plus one.
-
-\end{enumerate}
-So, the size of the possible types of a term $x$ is bounded by 
+For a given $n$, observe that there are only finitely many types with less than $n$ arrows.
+Each in a valid proof tree either adds an annotated $t$, or adds one.
+So the size of the possible types of a term $x$ is bounded by 
 \[
   \text{lambdas in x} \, + \sum_{t \text{ in x}} \text{arrows in t}
 \]
 Then we can scan all possible types, and we finally have a decision procedure for a term being a valid STLC term.
+Note there are better ones.
 
 \subsection{Remaining work}
 Great, so we've defined a nice fragment of the (annotated) lambda calculus.
@@ -260,10 +256,10 @@ So what?
     \item Does it actually eliminate our original target $\lambda x.\,xx$
     \item Are there other bad terms it doesn't eliminate?
     \item These annotations are an annoyance to write.
+    \item The choice of ground type seems arbitrary
 \end{enumerate}
 
-\noindent Let's answer Question 1 now, and leave 2 and 3 for later.
-
+\noindent Let's answer Question 1 now, and leave the rest for later.
 Can we give this thing a type? Suppose there was an annotation $t$ which made $\lambda (x:t).\,xx$ well-typed.
 Then for some $u$ we build the following
 \[
@@ -288,6 +284,5 @@ Since things are confluent, this is the only possible proof tree for $\vdash \la
 So there is no such $t$ which makes this well-typed.
 
 So by attaching this type system to lambda calculus, we have removed at least some of the scary terms we wanted.
-We will see next time just how much removed
 \end{document}
 
