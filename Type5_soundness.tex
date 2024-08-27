@@ -1,0 +1,194 @@
+\documentclass[12pt]{article}
+\setlength{\oddsidemargin}{27mm}
+\setlength{\evensidemargin}{27mm}
+\setlength{\hoffset}{-1in}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{ stmaryrd }
+\usepackage{bussproofs}
+
+\newenvironment{bprooftree}
+  {\leavevmode\hbox\bgroup}
+  {\DisplayProof\egroup}
+
+
+\newtheorem{theorem}{Theorem}
+
+
+\newcommand{\hask}{\mintinline{haskell}}
+\newcommand{\llb}{\llbracket}
+\newcommand{\rrb}{\rrbracket}
+
+\setlength{\topmargin}{27mm}
+\setlength{\voffset}{-1in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+
+\setlength{\textheight}{235mm}
+\setlength{\textwidth}{155mm}
+
+%\pagestyle{empty}
+\pagestyle{plain}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\renewcommand{\labelitemi}{$\diamond$}
+
+\begin{document}
+\baselineskip 12pt
+
+\begin{center}
+\textbf{\Large Type Soundness} \\
+\end{center}
+
+\section{Types should make sense}
+Last time we saw a typed language, that is annotated lambda calculus terms and simple types.
+We talked about how the type side worked: proof trees and such.
+But we didn't really talk about why this type system is a "good" or "accurate" reflection of the underlying language. 
+What should it do?
+
+Formally, we have two rewrite systems.
+One for the language, and one for judgements.
+Naturally, these should be aligned somehow.
+The classic statement is \textbf{well-typed programs never go wrong}.
+Critically the point is that types should be predictors of runtime behavior.
+The most general formulation is 
+\begin{theorem}[Soundness]
+  For a term $e_1$ and type $\tau$, if $\vdash e_1 : \tau$, if $e_1$ evaluates to $e_2$, then $e_2$ is a value of type $\tau$.
+\end{theorem}
+
+There are many subtleties here
+\begin{enumerate}
+    \item What do we mean by value?
+    \item Can it do bad things along the way?
+    \item How would we prove this?
+\end{enumerate}
+
+\section{Values, and the art of not getting stuck}
+
+Let's start by talking about a bit of cheating we did last week.
+We introduced an $N$ type, and added terms $0,1,2,...$, and defined the annotated lambda calculus.
+We defined the simple types, and a judgement relation.
+Then we defined the STLC to be the \textbf{terms of the annotated lambda calculus that are well-typed}.
+We know the annotated lambda calculus is confluent with its $\beta$ rule.
+But that doesn't tell us a lot about STLC.
+So consider some well typed $e_1$ and $e_2$ with $e_1 \rightarrow^* e_2$ in the annotated lambda calculus.
+Maybe every path from $e_1$ to $e_2$ goes through something not-well-typed.
+So we might end up with a bunch of \textit{spurious} normal forms!
+\[
+  \underbrace{e_1}_{\vdash e_1 : \tau} \rightarrow ... \rightarrow \underbrace{e_i}_{\vdash e_i : \tau} \rightarrow \underbrace{e_{i+1}}_{\text{no valid type}} \rightarrow ... \rightarrow \underbrace{e_n}_{\vdash e_n : \tau}
+\]
+If all such paths look like this, then $e_i$ is a normal form in STLC, and not in untyped lambda.
+So now we have to worry about normal in what language?
+We could resolve this by requiring something like 
+\[
+  \text{ normal in STLC } \Rightarrow \text{ normal in annotated lambda }
+\]
+But there are many nonsense normal forms, like 
+\[
+  4\, x
+\]
+which is a bad thing to return to a user since 4 is not a function.
+So in general, We need something stronger. 
+The way we rule these out is to designate some expressions as values.
+These are things we expect to find at the end of a computation.
+In our language, the values are
+\begin{enumerate}
+    \item the literals 1,2,...
+    \item abstractions $\lambda x:\tau.\, e$
+\end{enumerate}
+Basically we want no lingering applications.
+Annoyingly, these might not be normal since the body of the lambda may have further evaluations.
+
+So what we want is more like
+\[
+  \text{ normal in STLC } \Rightarrow \text{ value in annotated lambda }
+\]
+This is almost the classical definition of progress.
+We will end up refactoring things to make some inductions a bit nicer.
+
+\section{Making sure things don't get worse}
+We snuck in a hint in the last section.
+Why should we expect the success terms to have the same types
+\[
+  \underbrace{e_1}_{\vdash e_1 : \tau} \rightarrow ... \rightarrow \underbrace{e_i}_{\vdash e_i : \tau} \rightarrow ...
+\]
+
+A priori? there is no reason.
+But if we want the type to predict runtype behavior, it's extremely desirable that partial execution should not change the types!
+Formally, we want evaluation to preserve type information, so 
+\[
+  \vdash e_1 : \tau \land e_1 \rightarrow e_2 \Rightarrow \vdash e_2 : \tau
+\]
+This just says that the judgements respect the evaluation rules, and conversely that evaluation can never change a type.
+
+Recall the candidate \textit{don't get stuck} rule was
+\[
+  \text{ normal in STLC } \Rightarrow \text{ value in annotated lambda }
+\]
+which unpacks to 
+
+\[
+  \vdash e_1 : \tau \land e_1 \not{\rightarrow} e_2 \text{ with } \vdash e_2 : \tau'  \Longrightarrow e_1 \text{ is a value }
+\]
+and then to
+\[
+  \vdash e_1 : \tau \Longrightarrow e_1 \rightarrow e_2 \text{ with } \vdash e_2 : \tau' \; \lor \; e_1 \text{ is a value }
+\]
+but in a world with progress, we don't need the extra condition on $e_2$.
+So we can reduce this to
+\[
+  \vdash e_1 : \tau \Longrightarrow e_1 \rightarrow e_2 \; \lor \; e_1 \text{ is a value }
+\]
+which is progress.
+\section{Putting it together}
+So we've now strayed a bit from our goal.
+What do progress and preservation have to do with the soundness definition we gave earlier?
+Well, soundness isn't always easy to prove by a direct structural induction.
+But progress and preservation often are easy.
+And 
+\[
+ \text{progress} + \text{preservation} \Rightarrow \text{soundness}
+\]
+The proof is dead simple. Suppose 
+\[
+ e_1 \rightarrow ... \rightarrow e_2
+\]
+where $\vdash e_1 : \tau$ and $e_2$ is normal.
+Then by induction on the length of this sequence and preservation, $\vdash e_2 : \tau$.
+Now we can apply progress and normality of $e_2$ to see that it must be a value.
+
+
+\section{Preservation for STLC}
+Let's show that STLC has preservation.
+Last week we already saw that
+\[
+\vdash (\lambda x:\tau'.\, e_1) e_2 : \tau \Longrightarrow e_1[x:=e_2] : \tau
+\]
+This is almost preservation, but the full $\beta$, can apply anywhere.
+Not just for terms that are applications at the top level.
+So we induct, but we do need to strength the induction hypothesis a bit to include a context.
+Suppose $e \rightarrow e'$ with $\Gamma\vdash e : \tau$. 
+\begin{enumerate}
+    \item Case $e$ is a variable or a literal: there are no rewrite rules that apply
+    \item Case $e = e_1\, e_2$ with redux in $e_1$:
+          then $\Gamma\vdash e_1 : \tau' \rightarrow \tau$, $\Gamma\vdash e_2 : \tau'$, and
+           $e' = e'_1\, e_2$. 
+          By induction, $\Gamma\vdash e'_1 : \tau' \rightarrow \tau$ as well. 
+          $\Gamma\vdash e'_1 e_2 : \tau$, so we're happy.
+    \item Case $e = e_1\, e_2$ with redux in $e_2$:
+          then $\Gamma\vdash e_1 : \tau' \rightarrow \tau$, $\Gamma\vdash e_2 : \tau'$, and
+           $e' = e_1\, e'_2$. 
+          By induction, $\Gamma\vdash e'_2 : \tau'$. 
+          $\vdash e'_1 e_2 : \tau$, so we're happy again.
+    \item Case $e = \lambda x:\tau'.\, e_1$:
+          then $(x,\tau') + \Gamma\vdash e_1 : \tau$, and $e' = \lambda x:\tau'.\, e'_1$
+          By induction, $(x,\tau') + \Gamma\vdash e'_1 : \tau$.
+          Therefore $\Gamma\vdash \lambda x:\tau'.\, e'_1 : \tau$.
+\end{enumerate}
+A proof of this structure is quite rote.
+And in a language like STLC, it's much easier to prove this than soundness directly.
+I'm not gonna do progress here, the proof is not hard though.
+
+\end{document}
