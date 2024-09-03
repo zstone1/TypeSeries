@@ -1,0 +1,274 @@
+
+\documentclass[12pt]{article}
+\setlength{\oddsidemargin}{27mm}
+\setlength{\evensidemargin}{27mm}
+\setlength{\hoffset}{-1in}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{ stmaryrd }
+\usepackage{bussproofs}
+\usepackage{tikz-cd}
+
+\newenvironment{bprooftree}
+  {\leavevmode\hbox\bgroup}
+  {\DisplayProof\egroup}
+
+
+\newtheorem{theorem}{Theorem}
+
+
+\newcommand{\hask}{\mintinline{haskell}}
+\newcommand{\llb}{\llbracket}
+\newcommand{\rrb}{\rrbracket}
+
+\setlength{\topmargin}{27mm}
+\setlength{\voffset}{-1in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+
+\setlength{\textheight}{235mm}
+\setlength{\textwidth}{155mm}
+
+%\pagestyle{empty}
+\pagestyle{plain}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\renewcommand{\labelitemi}{$\diamond$}
+
+\begin{document}
+\baselineskip 12pt
+
+\begin{center}
+\textbf{\Large System F} \\
+\end{center}
+
+\section{Restating our goals}
+Our journey began with rewrite systems, which were way too general.
+But gave us a nice framework to discuss language designs. 
+Next, we looked at the untyped lambda calculus, which had some nice features, but also had some really powerful, scary stuff.
+From a language design perspective, it's full of foot-guns.
+We tried to eliminate those dangers with a type system, the Simply Typed Lambda Calculus.
+This worked, eliminating terms like $\lambda x.\, x\, x$. 
+We also saw that STLC has progress and preservation, so good things are happening.
+
+But STLC had (at least) two weaknesses.
+We saw some weirdness around the identity function.
+Lambda calculus has a term $\lambda x.\, x$.
+But STLC requires and type annotation on that $\lambda$, so there is no single identity function. This is not morally wrong, just a bit awkward.
+We also had to introduce ground types in the language a priori.
+This is a bit weirder, since it seems to dramatically limit what a user can express.
+We're used to languages that let users define their own types, after all!
+
+Today, we will introduce System F, which presents alternative tradeoffs.
+We will recover a unique identity function, at the cost of some rather complex terms.
+We will also be able to express new types internally in system F without extending the term language. 
+But that will cost us type inference.
+
+\section{Defining System F}
+
+Note the F in system F is just a historical coincidence, nothing special.
+Sometimes it's called the polymorphic lambda calculus.
+We'll stick to system F.
+Our plan is as before.
+Define types, define a a big set of terms, including type annotations.
+Then we'll define our $\beta$ rule(s), and a typing judgement
+And lastly define system F to be the well-typed terms under $\beta$s.
+Our type language is 
+\[
+  t := \alpha \,|\, \forall \alpha.\, t \,|\,  t \rightarrow t
+\]
+We have type-variables $\alpha$, binders $\forall \alpha$, and arrows.
+Examples of such types are 
+\[
+  \forall \alpha.\, \alpha \rightarrow \alpha \quad\quad \forall \alpha.\forall \beta.\,
+    (\alpha \rightarrow \beta) \rightarrow \beta
+  \quad\quad
+  \alpha \rightarrow (\forall \beta.\, \beta \rightarrow \alpha)
+\]
+Several things to note. 
+We don't have ground types.
+We will talk about why at length later.
+The quantifiers can appear anywhere.
+We also don't require the types to be closed, necessarily. We will mention when we want that.
+
+The our term syntax is almost like the annotated lambda calculus, but with a little extra power.
+
+\[
+  e := x \,|\, \lambda x:t.\, e \,|\, e \, e \,|\, \Lambda \alpha.\, e \, | \, e\, t
+\]
+The annotated types come from the system F types.
+And that $\Lambda$ is called type abstraction, and the corresponding type application.
+
+As usual, to define $\beta$, we need a notion of substitution.
+Annoyingly, we need three substitutions.
+The first two are the obvious ones from the syntax of terms and types.
+\begin{enumerate}
+    \item term-in-term: $e_1[x:=e_2]$
+    \begin{enumerate}
+        \item $x[x:=e] = e$
+        \item $y[x:=e] = y$
+        \item $(\lambda x:t.\,e_1)[x:=e_2] = \lambda x:t.\,e_1$
+        \item $(\lambda y:t.\,e_1)[x:=e_2] = \lambda y:t.\,e_1[x:=e_2]$
+        \item $(e_1\, e_2)[x:=e_3] = e_1[x:=e_3] \, e_2[x:= e_3]$
+        \item $(\Lambda \alpha.\, e_1)[x:=e_2] = \Lambda \alpha.\, e_1[x:=e_2]$
+        \item $(e_1\, t)[x:=e_2] = \Lambda \alpha.\, e_1[x:=e_2] \, t$
+    \end{enumerate}
+    \item type-in-type: $t_1[\alpha:=t_2]$
+    \begin{enumerate}
+        \item $\alpha [\alpha := t] = t$
+        \item $\beta [\alpha := t] = \beta$
+        \item $(\forall \alpha.\, t_1) [\alpha := t_2] = \forall \alpha.\, t_1$
+        \item $(\forall \beta.\, t_1) [\alpha := t_2] = \forall \beta.\, t_1[\alpha := t_2]$
+        \item $(t_1 \rightarrow t_2) [\alpha := t_3] = t_1[\alpha := t_t] \rightarrow t_2[\alpha := t_3]$
+    \end{enumerate}
+    \item type-in-term: $e[\alpha:= t]$
+    \begin{enumerate}
+        \item $x[\alpha := t] = x$
+        \item $(\lambda x:t, e)[\alpha := t] = \lambda x:(t[\alpha := t]).\, e[\alpha := t]$
+        \item $(e_1\,e_2)[\alpha := t] = e_1[\alpha := t]\, e_2[\alpha := t]$
+        \item $(\Lambda \alpha.\,e)[\alpha := t] = \Lambda \alpha.\,e$
+        \item $(\Lambda \beta.\,e)[\alpha := t] = \Lambda \beta.\,e[\alpha := t]$
+        \item $(e\,t_1)[\alpha := t_2] = e[\alpha := t_2]\, t_1[\alpha := t_2]$
+    \end{enumerate}
+\end{enumerate}
+Note there is an asymmetry: no term-in-type substitution.
+This is not an accident! More on this later.
+With our substitutions defined, we can now build our $\beta$s
+Since there are two abstraction/application pairs, we will need two 
+\[
+  (\beta_{\text{term}})\quad (\lambda x:t.\, e_1)\, e_2 \rightarrow e_1[x:= e_2]
+\]
+and
+\[
+  (\beta_{\text{type}})\quad (\Lambda \alpha.\, e)\, t \rightarrow e[\alpha:= t]
+\]
+And lastly, we need our judgements. 
+But since we have two sorts of abstractions, we also need two sorts of contextual info.
+We don't need to record any extra info about $\Lambda$ other than the name of the thing we introduced. 
+But we'll write $(\alpha, *)$ for symmetry with $(x,t)$ for members of the context.
+\[
+\begin{bprooftree}
+\AxiomC{$(x,t) \in \Gamma$}
+\LeftLabel{Cxt}
+\UnaryInfC{$\Gamma \vdash x : t$ }
+\end{bprooftree}\quad
+\begin{bprooftree}
+\AxiomC{$\Gamma \vdash e_1 : t_1 \rightarrow t_2 \quad \Gamma \vdash e_2 : t_1$}
+\LeftLabel{App}
+\UnaryInfC{$\Gamma \vdash e_1\, e_2 : t_2$ }
+\end{bprooftree}\quad
+\begin{bprooftree}
+\AxiomC{$\Gamma, (x,t_1) \vdash e : t_2$}
+\LeftLabel{Abs}
+\UnaryInfC{$\Gamma \vdash \lambda x:t_1.\, e : t_1 \rightarrow t_2$ }
+\end{bprooftree}\quad
+\]
+and the corresponding type rules
+\[
+\begin{bprooftree}
+\AxiomC{$\Gamma \vdash e : \forall \alpha.\, t_1 $}
+\LeftLabel{TypeApp}
+\UnaryInfC{$\Gamma \vdash e\, t_2 : t_1[\alpha:=t_2]$ }
+\end{bprooftree}\quad
+\begin{bprooftree}
+\AxiomC{$\Gamma, (\alpha,*) \vdash e : t$}
+\LeftLabel{TypeAbs}
+\UnaryInfC{$\Gamma \vdash \Lambda \alpha.\, e : \forall \alpha.\, t$ }
+\end{bprooftree}\quad
+\]
+
+And now, finally, we can define system F to be the well typed terms of this language, along with $\beta_{\text{term}}$ and $\beta_{\text{type}}$.
+We have just spent a month learning how to ask good questions about languages.
+Let's ask them.
+\section{System F's basic properties}
+As usual, we really like when our programming languages are confluent.
+Thankfully system F is indeed confluent.
+One way to do this proof is to just use the same parallel $\beta$ trick as before.
+You'll end up needing that term-in-term and type-in-term substitutions commute.
+\[
+  e_1[\alpha := t] [x := e_2] =  e_1 [x := e_2][\alpha := t] 
+\]
+We won't go through the proof in detail here, since we went through it full detail before.
+
+Let's consider some examples of system F terms.
+We previously complained that there was no general identity for STLC.
+But system F has 
+\[ 
+    \Lambda\alpha.\, \lambda x:\alpha.\, x 
+\] 
+with type derivation
+\[
+\begin{bprooftree}
+\AxiomC{$(x,\alpha) \in (x,\alpha), (\alpha,*)$}
+\UnaryInfC{$(x,\alpha), (\alpha,*) \vdash x  : \alpha$}
+\UnaryInfC{$(\alpha,*) \vdash (\lambda x:\alpha.\, x)  : \alpha \rightarrow \alpha$}
+\UnaryInfC{$\vdash (\Lambda\alpha.\, \lambda x:\alpha.\, x)  : \forall \alpha, \alpha \rightarrow \alpha$}
+\end{bprooftree}
+\]
+So we are happy about this.
+Note further that the simply typed lambda calculus embeds faithfully into system F.
+So all those terms come too.
+We also know to ask about normalization.
+
+But if we want to write real code, how do we do it?
+For starters, where are if statements and boolean?
+Little idea: given a boolean, you can branch on it.
+So we'd like a type like
+\[
+    \forall \alpha, Bool \rightarrow \alpha \rightarrow \alpha \rightarrow \alpha
+\]
+but what is Bool?
+Big idea: given a boolean you can \textit{only ever branch on it}.
+In other words, a bool is defined by it's branching behavior:
+\[
+Bool :=  \forall \alpha, \alpha \rightarrow \alpha \rightarrow \alpha
+\]
+This seems crazy, since it's not clear how many members of $Bool$ there are. 
+Certainly there are at least two
+\[
+  T:=\Lambda \alpha.\, \lambda x:\alpha.\,\lambda y:\alpha.\, x\quad \text{and} \quad F:=\Lambda \alpha.\, \lambda x:\alpha.\,\lambda y:\alpha.\, y
+\]
+Our medium term goal is to use theorems for free to prove these are the only two!
+
+Likewise, how would we write a list of bools?
+Little idea: given a list, we can fold over it.
+\[
+\forall \alpha.\, BoolList \rightarrow \alpha \rightarrow (Bool \rightarrow \alpha \rightarrow \alpha) \rightarrow \alpha
+\]
+Big idea: the only thing you can do with a list is fold over it.
+\[
+BoolList := \forall \alpha.\, \alpha \rightarrow (Bool \rightarrow \alpha \rightarrow \alpha) \rightarrow \alpha
+\]
+I'm using caution not to call this thing $(List\, Bool)$ because in Haskell, $List :: * \rightarrow *$, and we don't have any way to describe that here.
+In particular there is no App for types. 
+We can build an empty list of bools
+\[
+  BLNil := \forall \alpha.\, \lambda (x:\alpha).\,\lambda(y:Bool \rightarrow \alpha \rightarrow \alpha).\, x
+\]
+and a cons of type $\forall \alpha, Bool \rightarrow BoolList \rightarrow BoolList$
+\[
+  BLCons := \forall \alpha.\, \lambda (b : Bool).\, \lambda (l : BoolList).\, \lambda (x:\alpha).\,\lambda(y:Bool \rightarrow \alpha \rightarrow \alpha).\, y\, b\, (l\, \alpha \, y\, x)
+\]
+And that's with some syntax sugar! Withe everything fully inlined we get
+\begin{multline}
+  BLCons := \forall \alpha.\, \\
+\lambda (b : \forall \beta.\, \beta \rightarrow \beta \rightarrow \beta).\,\\ 
+\lambda (l : \forall \beta.\, \beta \rightarrow ((\forall \beta'.\, \beta' \rightarrow \beta' \rightarrow \beta') \rightarrow \beta \rightarrow \beta) \rightarrow \beta).\, \\
+\lambda (x:\alpha).\,\\
+\lambda(y:(\forall \beta.\, \beta \rightarrow \beta \rightarrow \beta) \rightarrow \alpha \rightarrow \alpha).\, \\y\, b\, (l\, \alpha \, y\, x)\\
+\end{multline}
+Ok, that's a 7 symbol term with a paragraph of type annotations. 
+Something awful has happened, and we'll need to spend some time to fix this.
+On the other hand, we use these type parameters to expression some useful computations.
+System F is servicably powerful to do some interesting stuff here, but we'll need to take some time to understand it's limits.
+Next up, we have 
+\begin{enumerate}
+    \item normalization by evaluation for system F (and beyond?).
+    \item inference and the Hindle-Milner fragment
+    \item Scott encodings of haskell ADTs
+    \item theorems for free, and the semantics of these encodings
+\end{enumerate}
+
+\end{document}
