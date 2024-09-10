@@ -1,0 +1,149 @@
+
+
+\documentclass[12pt]{article}
+\setlength{\oddsidemargin}{27mm}
+\setlength{\evensidemargin}{27mm}
+\setlength{\hoffset}{-1in}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{ stmaryrd }
+\usepackage{bussproofs}
+\usepackage{tikz-cd}
+
+\newenvironment{bprooftree}
+  {\leavevmode\hbox\bgroup}
+  {\DisplayProof\egroup}
+
+
+\newtheorem{theorem}{Theorem}
+
+
+\newcommand{\hask}{\mintinline{haskell}}
+\newcommand{\llb}{\llbracket}
+\newcommand{\rrb}{\rrbracket}
+
+\setlength{\topmargin}{27mm}
+\setlength{\voffset}{-1in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+
+\setlength{\textheight}{235mm}
+\setlength{\textwidth}{155mm}
+
+%\pagestyle{empty}
+\pagestyle{plain}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\renewcommand{\labelitemi}{$\diamond$}
+
+\begin{document}
+\baselineskip 12pt
+
+\begin{center}
+\textbf{\Large Normalization By Evaluation} \\
+\end{center}
+
+\section{An Starter Example}
+Normalization by evaluation is a technique for studying the normal forms of rewrite systems.
+The idea that terms often contain too much data. 
+Consider the "free monoid on $\{x,y,z\}$".
+That is, $\mathcal{M} = \{x,y,z,\epsilon\}*$
+Now, we can define some rewrite rules so
+\begin{enumerate}
+\item $(e_1 \cdot e_2)\cdot e_3 \rightarrow e_1 \cdot (e_2 \cdot e_3)$
+\item $e \cdot \epsilon \rightarrow e$
+\item $\epsilon \cdot e \rightarrow e$
+\end{enumerate}
+Then a term with no empties, and fully right-associated is in normal form.
+So insight is that all that really matters is the order of non-empty terms.
+All the parenthesis and $\epsilon$s are extra data.
+So we magic-up a semantics which preserves exactly the needed info.
+Turns out lists suffice!
+To build our semantic domain, we first need a way of translating the variables.
+So let's define a type $T = X \,|\, Y \,|\, Z$.
+So our semantic domain is $\mathcal{L} = [T]$.
+Our goal is to turn $\mathcal{M}$ terms into $\mathcal{L}$ terms, do the compute there, and then return to $\mathcal{M}$.
+
+The process of turning syntactic things into semantic things is called reflection.
+\begin{enumerate}
+\item $f\, \varepsilon = []$
+\item $f (e_1\cdot e_2) = f\, e_1\,+\!+\; f\,e_2$
+\item $f\, x = X$\quad $f\, y = Y$ \quad $f\, z = Z$
+\end{enumerate}
+And the reverse if reification.
+
+\begin{enumerate}
+\item $g\, [] = \varepsilon$
+\item $g (X : tl) = x \cdot g(tl)$
+\item $g (Y : tl) = y \cdot g(tl)$
+\item $g (Z : tl) = z \cdot g(tl)$
+\end{enumerate}
+
+The intention is to reflect then reify to evaluate things.
+\[
+  g(f( (x \cdot x) \cdot (\varepsilon \cdot y \cdot z))) = g ([X,X,Y,Z]) = x\cdot x \cdot y \cdot z \cdot \varepsilon
+\]
+
+Now we get a trailing $\varepsilon$ due to a quirk of how we defined $g$.
+But that doesn't change the good news:
+\begin{enumerate}
+    \item Completeness: if $e_1$ and $e_2$ are equal in the rewrite system sense (E.G. in the same component of the rewrite graph), $g (f (e_1)) = g(f(e_2))$
+    \item Soundness: forall $e$, $e$ and $g(f(e))$ are equal in the rewrite system.
+\end{enumerate}
+Also critically, $f$ and $g$ terminate.
+So everything has a normal form, computable in this way (with a minor patch to $g$ to fix that trailing $\varepsilon$).
+So the system is strongly normalizing!
+The proofs are, unsurprisingly, by induction. 
+Observe that $f$ respects the rewrite relations
+\[
+f (e\cdot \varepsilon ) = f(e) ++ [] = f(e)\quad\quad
+  f (\varepsilon \cdot e ) = [] ++ f(e) = f(e)
+\]
+and 
+\[
+f ((e_1\cdot e_2) \cdot e_3) = (f(e_1) +\!+ f(e_2)) +\!+ f(e_3) = f(e_1) +\!+ (f(e_2) +\!+ f(e_3)) = f (e_1\cdot (e_2 \cdot e_3))
+\]
+
+So completness follows by induction on the length of the path from $e_1$ to $e_2$.
+and soundness follows by induction on the structure of $e$.
+
+\section{NBE for System F}
+The crux of the correctness of this approach is that the rewrite rules turn into actual equalities in the semantics.
+That is, 
+\[
+  (x\cdot y) \cdot z \rightarrow x \cdot (y \cdot z)\quad \text{but}\quad
+    (x +\!+ y) +\!+ z = x +\!+ (y +\!+ z)
+\]
+So of course all of the terms related by a rewrite turn into literally equal things.
+Can we replicate that in System F? 
+Short answer is no. 
+We will need to some some much more clever things.
+Let's rule out some ideas that definitely don't work.
+
+The obvious induction fails somewhat catastrophically. The following is quite false
+\[
+ e_1 \, \text{and}\, e_2\, \text{strongly normalizing} \Rightarrow e_1 \, e_2\, \text{strongly normalizing}
+\]
+In fact, consider $e_1 = e_2 = \lambda x. x \, x$. 
+This term is strongly normalizing, but $e_1 \, e_2$ is not.
+So this approach is a bit hopeless.
+Instead we will interpret things into relations built up by the types of terms.
+So for each type $A$, we will build a $\llbracket A \rrbracket$ that 
+captures something about strongly normalizing terms of type $A$.
+Then we want to interpret each $\Gamma \vdash t : A \rightarrow \llbracket A \rrbracket$.
+
+Turns out even this isn't enough.
+One of the key problems is building up that relation inductively doesn't make sense for $\llbracket \forall X.\, A\rrbracket$. 
+Since $(\forall X.\, A)[X := (\forall X.\, A)]$ is substituting a type back in itself.
+This is called impredicativity, and it makes things hard.
+We will need a final trick to resolve this, called realizability.
+Intuitively, we think of $A$ realizing a relation $\mathcal{A}$ when it 
+witnesses the normalization of the terms in the relation.
+We'll formalize this shortly.
+But it will be enough to strength our induction hypothesis to finish the proof. 
+From here we will follow https://www.cse.chalmers.se/~abela/lpar08.pdf who has a nice, detailed presentation of the construction for System F's semantics.
+
+
+\end{document}
