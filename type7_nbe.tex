@@ -7,6 +7,7 @@
 \usepackage{minted}
 \usepackage{amsmath}
 \usepackage{amsthm}
+\usepackage{amssymb}
 \usepackage{amsfonts}
 \usepackage{ stmaryrd }
 \usepackage{bussproofs}
@@ -129,21 +130,139 @@ The obvious induction fails somewhat catastrophically. The following is quite fa
 In fact, consider $e_1 = e_2 = \lambda x. x \, x$. 
 This term is strongly normalizing, but $e_1 \, e_2$ is not.
 So this approach is a bit hopeless.
-Instead we will interpret things into relations built up by the types of terms.
-So for each type $A$, we will build a $\llbracket A \rrbracket$ that 
-captures something about strongly normalizing terms of type $A$.
-Then we want to interpret each $\Gamma \vdash t : A \rightarrow \llbracket A \rrbracket$.
+Instead our plan will be to do this in two phases.
+First we will interpret types into relations built up by the types of terms.
+That is $\llbracket A \rrbracket_\rho \subset S \times S$ where $S$ is the strongly normalizing terms, and $\rho$ is some interpretation of open variables.
+Secondly we will want to prove that for each $\Gamma \vdash t : A$, $(t,t) \in \llbracket A \rrbracket_\rho$ for some $\rho$ that is compatible with $\Gamma$ in some way.
 
-Turns out even this isn't enough.
-One of the key problems is building up that relation inductively doesn't make sense for $\llbracket \forall X.\, A\rrbracket$. 
-Since $(\forall X.\, A)[X := (\forall X.\, A)]$ is substituting a type back in itself.
-This is called impredicativity, and it makes things hard.
-We will need a final trick to resolve this, called realizability.
-Intuitively, we think of $A$ realizing a relation $\mathcal{A}$ when it 
-witnesses the normalization of the terms in the relation.
-We'll formalize this shortly.
-But it will be enough to strength our induction hypothesis to finish the proof. 
-From here we will follow https://www.cse.chalmers.se/~abela/lpar08.pdf who has a nice, detailed presentation of the construction for System F's semantics.
+Let's define some stuff optimistically, and see how far we can go.
+The plan is to interpret each type into a (nearly) equivalence relation that intuitively means
+\[
+  (e_1,e_2) \in \llbracket A \rrbracket \leftrightarrow \Gamma \vdash e_1 = e_2 : A
+  \quad\text{roughly}\quad \Gamma \vdash e_1 : A \; \land \; \Gamma \vdash e_2 : A \; \land \;  \Gamma \vdash e_1 =_\text{ish} e_2
+\]
+Of course we aren't gonna define that $=_\text{ish}$ here.
+But we can handle the extra context that appears
+\[
+\llbracket A \rrbracket : \mathcal{P}(Term \times Term) \quad\text{becomes}\quad
+\llbracket A \rrbracket : Cxt \rightarrow \mathcal{P}(Term \times Term)
+\]
+But but we need a little extra something that says it respects contexts with more/lesss information. So if we a use context with less specific types (like using $\forall B.\,A \rightarrow B$ instead of the more general $A \rightarrow A$) we never break equalities.
+\[
+\Gamma' \leq \Gamma \rightarrow \llbracket A \rrbracket_{\Gamma} (e_1,e_2) \rightarrow \llbracket A \rrbracket_{\Gamma'} (e_1,e_2)
+\]
+So we will write with the notation
+\[
+\Gamma \vdash e_1 \sim e_2 \in \mathcal{A} := (e_1,e_2) \in \mathcal{A}_\Gamma
+\]
+
+\section{Building these relations}
+Our types are defined recursively, so we'll need to define this interpretation recursively as well. 
+Arrow types are relatively easy.
+Given relations $\mathcal{A}, \mathcal{B}$, two terms $f,f'$, and a context $\Gamma$ we say they send related terms to related terms when 
+\[
+  \forall d\, d'\, \Gamma' \leq \Gamma,\, \Gamma' \vdash d \sim d' \in \mathcal{A}
+  \;\text{implies}\; \Gamma' \vdash f\, d \sim f\,d' \in \mathcal{B}
+\]
+So we can define an arrow between relations as
+\[
+\mathcal{A} \rightarrow_R \mathcal{B} := \Gamma \mapsto 
+  \{ (f,f') \in Term \times Term \, |\, (f,f') \text{ send $\mathcal{A}$ related terms to $\mathcal{B}$ related terms}
+  \}
+\]
+\subsection{Attempt 1}
+So we can make a very first attempt to define an interpretation.
+Given a $\rho$ which interprets free type variables are relations,
+\begin{enumerate}
+    \item  $\llbracket X \rrbracket_\rho(X) = \rho(X)$
+    \item  $\llbracket A \rightarrow B \rrbracket_\rho := \llbracket A \rrbracket_\rho \rightarrow_R \llbracket B \rrbracket_\rho$
+    \item  $\llbracket \forall X B \rrbracket_\rho :=\; \bigcap_{A} \llbracket B[X := A]\rrbracket_\rho$
+\end{enumerate}
+Now, there are some things we need to show. Firstly
+\[
+\text{For any type A, if $\rho(X)$ is an equivalence relation for all $X$, then so is $\llbracket A \rrbracket_\rho$}
+\]
+The other thing we want is
+\[
+\llbracket A[X := B] \rrbracket_\rho = \llbracket A \rrbracket_{\rho + [X := \llbracket B \rrbracket_\rho}
+\]
+This is going to give us significant trouble.
+We induct on the structure of the type, and the type variable case and the arrow case are easy.
+For the type abstraction case, we've got problems. 
+The induction hypothesis just doesn't apply to $\llbracket B[X:=A]\rrbracket_\rho$.
+This is the same problem as before, we really can't induct against these substitutions.
+
+\subsection{Attempt 2}
+Instead, let's define a new relation-level operator like we did for arrow, and see if that helps.
+Given a type $\forall X, B$, we can imagine it's built up of slices for each substitution $X := A$.
+So we can build a relation for each slice which says that terms are related upon type application of $A$
+\[
+slice_A(\mathcal{B}) =\Gamma \mapsto \{(e_1,e_2) \in Term \times Term \,|\, 
+  \Gamma \vdash e_1 \cdot A \sim e_2 \cdot A \in \mathcal{B} \}
+\]
+(Note the paper uses $(A.\mathcal{B})^{\forall X, B}$ for this).
+Now we can try again, updating the substitution instead.
+\begin{enumerate}
+    \item  $\llbracket X \rrbracket_\rho(X) = \rho(X)$
+    \item  $\llbracket A \rightarrow B \rrbracket_\rho := \llbracket A \rrbracket_\rho \rightarrow_R \llbracket B \rrbracket_\rho$
+    \item  $\llbracket \forall X B \rrbracket_\rho :=\; \bigcap_{A} slice_A(\llbracket B\rrbracket_{\rho + [X := \llbracket A\rrbracket_\rho]})$
+\end{enumerate}
+
+Ok, so we're on the right track.
+But now the $\rho$ is changing, so our induction hypothesis are gonna get weird.
+Even for the simple attempt at the equivalence relation proof,
+The induction hypothesis will state 
+\[
+  \text{forall $\rho$, if forall $X$, $\rho(X)$ is an equivalence relation, then so is $\llbracket B \rrbracket_\rho$}
+\]
+Then we would like to just finish with $slice_A$ takes equivalence relations to equivalence relations, and intersections work.
+However, we need to show that $\rho + [X := \llbracket A \rrbracket_\rho]$ sends $X$ to an equivalence relation for all $A$.
+But that includes $A := \forall X B$. 
+But that's what we're trying to prove.
+So we're stuck!
+
+So proving our intended goal that $\llbracket A \rrbracket \subset S \times S$ has no prayer.
+More-or-less, we need to get $\llbracket A \rrbracket$ out of the RHS entirely.
+
+\subsection{Attempt 3}
+A clever idea is intersecting over relations instead of types. 
+But we still need the type to take the slice.
+But we need some way to connect the type and the relation.
+Some kind of "is built from this type" indiciator. We'll call it $\Vdash$.
+\begin{enumerate}
+    \item  $\llbracket X \rrbracket_\rho(X) = \rho(X)$
+    \item  $\llbracket A \rightarrow B \rrbracket_\rho := \llbracket A \rrbracket_\rho \rightarrow_R \llbracket B \rrbracket_\rho$
+    \item  $\llbracket \forall X B \rrbracket_\rho :=\; \bigcap_{A\, \Vdash \,\mathcal{A}} slice_{A}(\llbracket B\rrbracket_{\rho + [X := \mathcal{A}]})$
+\end{enumerate}
+Now good things are happening.
+with the right assumptions on $\Vdash$, the inductions will go through.
+In particular, we want it to preserve typing information, so 
+\[
+  A \Vdash \mathcal{A} \; \land \;  B \Vdash \mathcal{V} \Rightarrow A \rightarrow B \Vdash \mathcal{A} \rightarrow_R \mathcal{B}
+\]
+and for type abstractions, if for some function $F$ we have 
+\[
+   A\Vdash \mathcal{A} \Rightarrow B[X := A] \Vdash F(\mathcal{A})
+\]
+then 
+\[
+   \forall X B \Vdash \bigcap_{A\Vdash \mathcal{A}} slice_A(F(\mathcal{A}))
+\]
+The theory ends up with a slightly more general description of valid $\Vdash$ relations called realizability. 
+From here we get the core lemma that when $\sigma$ is a type substitution $[X1 := A_1, ..., X_n := A_n]$ and $\rho$ sends $\rho(X_i) \Vdash \llbracket A_i\rrbracket_\rho$, then  $A\sigma \Vdash \llbracket A \rrbracket_\rho $
+
+The final step of induction to prove that 
+\[
+  \Gamma \vdash e : A \Rightarrow \Gamma \vdash e \sim e \in \llbracket A\rrbracket_\rho
+\]
+is pretty strightforward, although you'll have to work through a small lie I've told about $\mathcal{A}$ always taking values in $Term$ instead of, perhaps terms quotiented by a beta reduction.
+Then the normalization by evaluation technique involves two more nuances.
+First, using $\eta$-long $\beta$-normal forms.
+This is just what happens when you extend your rewrite system to include $\eta$, and see what normalization does.
+Second, you need to pick a more interesting domain for $\mathcal{A}$ that is, more-or-less values, types, and functions between them. 
+
+We have mostly followed https://www.cse.chalmers.se/~abela/lpar08.pdf who has a nice, detailed presentation of the construction for System F's semantics.
+He covers it in much more detail than I do
 
 
 \end{document}
