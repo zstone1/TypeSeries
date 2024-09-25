@@ -147,15 +147,12 @@ Turns out there are a lot of important questions we should ask about this order.
 \section{Algebra on Types}
 We'll spend a lot of time talking about type level algebra.
 But in the spirit of asking good question about your types, there are a handful of questions order theorists would ask at this point.
-\[
-    \text{Is it complete, in the sense of every set of types has a inf/sup}
-\]
-The first question is interesting.
-The obvious answer is no, since there no obvious way in general to say \textit{terms that are both an typeable as an $A$ or a $B$}.
-Turns out there are other solutions to this internally in System F.
-It will also serve as a useful extension of System F, that we'll see later.
-
-The question of completeness seems a bit random.
+\begin{enumerate}
+    \item \text{Is it a lattice? that is, can we take meet/join of types?}
+    \item \text{Is it complete, in the sense of every set of types has a inf/sup}
+\end{enumerate}
+The first question is interesting. We will get back to it in a later session.
+The question of completeness seems a bit arbitrary.
 But it turns out to be exactly what we need to make inference work!
 In particular, given a context $\Gamma$ and an untyped lambda term $\hat{e}$, we want to take the set 
 \[
@@ -175,7 +172,14 @@ The idea is that this is the best possible choice for an inference engine to mak
 \]
 and curiously it's equivalent to completeness of the typing lattice. 
 Fact: STLC doesn't have a principal type for $\lambda x, x$. 
-Fact: System F does have a principal type for $\lambda x, x$. 
+Fact: System F does have a principal type for $\lambda x, x$.
+Fact: Type inference for System F is generally undecidable!
+We won't go over the proof for this but apparently both of the following are undecidable
+\begin{enumerate}
+    \item Given a type $A$, un-annotated term $\hat{e}$, and a context $\Gamma$, is there an annotated version with $\Gamma \vdash e : A$ is undecidable
+    \item Given un-annotated term $\hat{e}$, and a context $\Gamma$, find its principal type $A$. 
+\end{enumerate}
+I am not even sure if all terms have principal types in system F in theory, but it doesn't really matter since you couldn't construct them anyway.
 But why do we care about picking the principal type, can't we just make a reasonable choice?
 Consider
 \[
@@ -186,7 +190,7 @@ Is choosing $\alpha \rightarrow \alpha$ so bad?
 
 \section{Compositional Inference}
 The short answer is yes, it is that bad. 
-We would like to be able to apply decide $f$ later, but we've artificially constrained ourselves to $f$ of the form $\alpha \rightarrow \alpha$.
+We would like to be able to decide $f$ later with full freedom, but we've artificially constrained ourselves to $f$ of the form $\alpha \rightarrow \alpha$.
 Then (recalling that $T := \Lambda \alpha, \lambda (x : \alpha),\lambda (y : \alpha), x$
 \[
   \vdash (\lambda x, f x)[f := T] : ??
@@ -206,5 +210,7 @@ Q := \alpha \;|\; Q \rightarrow Q \quad\quad H ::=  Q \;|\; \forall \alpha, H
 That is, types with all the quantifiers out front.
 We call this the Hindley-Milner fragment, for HM. 
 This fragement has principal types, and there's a inference procedure which takes an lambda term $\hat{e}$. It will fail if the term is not typable in system HM. Or returns its principal type.
+Note that HM is not impredicative, so you can directly induct on the judgements to construct the principal type.
+We will see more about that next week.
 
 \end{document}
