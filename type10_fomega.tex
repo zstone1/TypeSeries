@@ -157,34 +157,99 @@ The first thing we do is \textbf{continuation passing transform at the type leve
 That is, we will first perform a ``haskell-to-haskell" data transform.
 Add an extra type parameter, and replace every recursive call with that parameter.
 \[
- \hask{List t = Emp | t : List t} \quad\longrightarrow\quad \hask{ListK t r = Emp | t : r}
+ \hask{Nat = S Nat | Zero} \quad\longrightarrow\quad \hask{NatK r = S r | Zero}
 \]
-Now we can encode \hask{ListK} the standard way 
+Now we can encode \hask{NatK} the standard way 
 \[
-  ListK := t \Rightarrow r \Rightarrow \forall \alpha, \alpha \rightarrow (t \rightarrow r \rightarrow \alpha) \rightarrow \alpha
+  NatK := r \Rightarrow \forall \alpha, (r \rightarrow \alpha)  \rightarrow \alpha \rightarrow  \alpha
+\]
+But this is either zero, or one plus a continuation. 
+If we wanted to represent two, we need
+
+\[
+  NatK \circ NatK := r \Rightarrow \forall \alpha, (\Big( \forall \beta, (r \rightarrow \beta)  \rightarrow \beta \rightarrow  \beta\Big) \rightarrow \alpha)  \rightarrow \alpha \rightarrow  \alpha
 \]
 
-The short version is to replace $r$ with $\alpha$.
-If this is a bit unsatisfying, that ok.
-The interesting thing is that the result from before holds.  
-If you add the corresponding constructors and elimination rules to System F, you'll find an isomorphism.
+And we want a fixpoint of these types. 
+How can we do that?
+Well, there is no one best way.
+But a very reasonable choice is to consider finite chunks of the fixpoint. 
+So we want to think about $(NatK \circ ... \circ NatK)\, Unit$, which precisely the naturals up to $n$.
+Then we want some type which has all of these in it.
+In other words we want a type $Nat$ where there exists functions
+\begin{equation}
+\begin{split}
+ &f_0 : Unit \rightarrow Nat\\
+ &f_1 : NatK\; Unit \rightarrow Nat\\
+ &f_2 : NatK\; (NatK\; Unit) \rightarrow Nat \\
+ & ...
+\end{split}
+\end{equation}
+which respect the truncation $NatK (NatK\, Unit) \rightarrow NatK\, Unit$.
+And where each $f_1$ is an injection.
+There is more than one way to do this, this is the difference between the Scott and the Church encoding. 
+We will look at the church encoding, which is simply 
+\[
+\forall \alpha, (\alpha \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
+\]
+
+So long story short, we replace $r$ with $\alpha$.
+Note that this has the desired property, and for example
+
+\[
+  f_0 := \Lambda \alpha. \lambda (s : \alpha \rightarrow \alpha). \lambda (z: \alpha). z
+\]
+\[
+  f_1 := \lambda (f : NatK\; Unit). \Lambda \alpha. \lambda (s : \alpha \rightarrow \alpha). \lambda (z: \alpha). f \;\alpha\; \Big(f_0\,  id\,\alpha\, s\, (s\, z) \Big)\; z 
+\]
+and
+\begin{equation}
+\begin{split}
+f_2 := &\lambda (f : NatK(NatK\; Unit)). \Lambda \alpha. \lambda (s : \alpha \rightarrow \alpha). \lambda (z: \alpha). \\
+ & f \;\alpha\; \Big(\lambda (n : NatK\, Unit). f_1\, n\, \alpha\, s\, (s\, z)\Big) z
+\end{split}
+\end{equation}
+This is basically just calling the previous one with an extra $s$.
+The interesting thing is that the result from before holds.
+Where the encoding of $Nat$ is equivalent to the one you'd get extending System F with explicit Nat terms.
+But now the elimination rule is a bit trickier, since you don't want to represent arbitrary recursion. 
+As the haskell program 
+\begin{minted}{haskell}
+f x = case x of 
+        Zero -> f Zero
+        S n -> f (S n)
+\end{minted}
+does not have a corresponding $F_\omega$ term since it doesn't terminate.
+But the upshot of this is that we get a legit System F only description of Nat.
+Where all of our nice recursive functions work.
+In particular, recursion structured like 
+\begin{minted}{haskell}
+f :: Nat -> t
+f x = case x of 
+        Zero -> z
+        S n -> let recursed := f n in s recursed
+\end{minted}
+for some \hask{z :: t} and \hask{s :: t -> t}.
+But this process will works for any recursive ADT.
+The construction of the $f_i$ is a bit annoying, but it will work!
 
 \section{Folding over anything}
 This leads to a series of important features in system $F_\omega$.
-The classic church numerals are now well-motivated.
-That is 
+Armed with
 \[
-  \forall \alpha, (\alpha \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
+  Nat := \forall \alpha, (\alpha \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
 \]
-is exactly the encoding of 
+As our encoding of
 \[
 \hask{data Nat = S nat | Zero}
 \]
-So system F knows about arithmetic.
+system F now knows about arithmetic.
 In fact for any of these structures, the church encodings define ``foreach loops" that respect the structure of the data.
 They are guaranteed to terminate. 
-So we have loops, but also termination guarantees.
-This leads to the rather critical code design point: don't use general recursive when a church encoding will suffice. 
+So we have basic loops, but also termination guarantees.
+This leads to the rather critical code design point: don't use general recursive when a church encoding will suffice.  This leads to a series of interesting design patterns called ``bananas, envelopes, and barbed wires".
+We will look at that paper next week.
+But the idea is that the theorems for free for these encodings will allow us to fuse to constructors and destructors for a huge performance gain. 
 
 We can also now talk about the haskell type \hask{Functor}.
 Given a $t : * \rightarrow *$, we equip it with an 
@@ -196,7 +261,9 @@ Along with laws that
 \[
    fmap\; id = id\quad\text{and}\quad fmap (f \circ g) = fmap\; f \circ fmap\; g
 \]
-Oddly, these are exactly the theorems for free for $t$. 
+Oddly, these are exactly the theorems for free for $t$.
+Something deep is going on, and is one of the reasons why deriving functors is so safe.
+It's just deriving a property of your data type directly from System F.
 \section{A Moment of Reflection}
 We have now pretty much defined the core of the ML/Haskell languages.
 We've build the main objects of study in lambda calculus, although many more extensions are possible and interesting. 
@@ -210,6 +277,7 @@ And while we often talk about trading off expressiveness for analyzability, we h
     \item Impredicativity (I want a type with a ``forall types" in it)
     \item Principal types (I want to say "the type" of a term, not "a type")
     \item Type computations (I want the computer to tell me "the" type)
+    \item Recursion (I want to work with any nat, not just fixed sizes ones)
 \end{enumerate}
 The idea is that we can make more careful judgements about what kind of expresivity is needed, and where the tradeoffs can be made when designing a language.
 
