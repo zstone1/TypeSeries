@@ -1,0 +1,217 @@
+
+\documentclass[12pt]{article}
+\setlength{\oddsidemargin}{27mm}
+\setlength{\evensidemargin}{27mm}
+\setlength{\hoffset}{-1in}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{ stmaryrd }
+\usepackage{bussproofs}
+\usepackage{tikz-cd}
+
+\newenvironment{bprooftree}
+  {\leavevmode\hbox\bgroup}
+  {\DisplayProof\egroup}
+
+
+\newtheorem{theorem}{Theorem}
+
+
+\newcommand{\hask}{\mintinline{haskell}}
+\newcommand{\llb}{\llbracket}
+\newcommand{\rrb}{\rrbracket}
+
+\setlength{\topmargin}{27mm}
+\setlength{\voffset}{-1in}
+\setlength{\headheight}{0pt}
+\setlength{\headsep}{0pt}
+
+\setlength{\textheight}{235mm}
+\setlength{\textwidth}{155mm}
+
+%\pagestyle{empty}
+\pagestyle{plain}
+
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+\renewcommand{\labelitemi}{$\diamond$}
+
+\begin{document}
+\baselineskip 12pt
+
+\begin{center}
+\textbf{\Large Type Level Shenanigans} \\
+\end{center}
+
+\section{ What Is \hask{List}}
+
+In haskell, we often talk about \hask{List} or \hask{Maybe}.
+But in system F it's not entirely clear how to encode this.
+We talked about encoding data types in System F using the church encoding last time.
+But when we think about 
+\begin{minted}{haskell}
+data Mabye t = Just t | Nothing
+\end{minted}
+We haven't really talked about what to do with that \hask{t}.
+It should, more-or-less look like
+\[
+ \forall \alpha, (t \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
+\]
+but \hask{t} isn't a type.
+And we don't really have a sensible notion of an ``open type".
+One natural choice is to put a quantifier around it.
+\[
+  \forall \beta, \forall \alpha, (\beta \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
+\]
+This is an OK choice, but it's a bit fishy.
+In particular we also talk about Maybe as it applies to thing. Such as \hask{Maybe Unit}.
+However, \textbf{there is not type level application in system F}, so we can't write 
+\[
+  \big(\forall \beta, \forall \alpha, (\beta \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha\big) \big(\forall \alpha, \alpha \rightarrow \alpha\big)
+\]
+
+However, we can write \hask{Maybe\, Unit} directly, as 
+\[
+  \forall \alpha, (\big(\forall \alpha, \alpha \rightarrow \alpha\big) \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha\big)
+\]
+But that's not really the type \hask{Maybe} applied to the type \hask{Unit}.
+It's a weird abomination, but you know what I mean.
+Let's start by explaining to System F what we mean.
+
+\section{$F_1$}
+
+We will add two features to our language.
+It may shock you to learn that it's going to be a pair of abstraction and application.
+First is the abstraction. 
+The concept is called a universe.
+The universes are going to be tiered.
+We will start with the 0, which is just the set of system F types.
+We introduce a helper concept called a kind, and say they all have kind $*$. 
+Then we add a new universe, and a new kind $* \rightarrow *$. 
+These are the set of terms 
+\[
+  \alpha \Rightarrow t
+\]
+such that $\forall \alpha, t$ is kind $*$. 
+In other words $t$ is an open term with one free variable $\alpha$.
+
+The second thing is a type-level application, so given $\alpha \Rightarrow T : * \rightarrow *$, and a $t : *$, we define $T\, a$ as $T [\alpha := t]$. 
+
+This already lets us give meaning to $\hask{Maybe}$.
+We can now define a kind $* \rightarrow *$ as
+\[
+  Maybe := \beta \Rightarrow \forall \alpha, (\beta \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
+\]
+In haskell terms, this setup eta expands everything, so $\hask{Maybe}$ is just shorthand for $\alpha \Rightarrow \hask{Maybe}\, \alpha$.
+Of course haskell doesn't have type-level lambdas, so this is all a bit annoying to notate.
+
+But now we can do all sorts of fun things.
+We can define functors, monads, traversable, and that whole family of behaviors.
+But we can't define monad transformers.
+A monad transformer takes a monad, and returns a monad.
+In other words it takes a $* \rightarrow *$ and returns a $* \rightarrow *$.
+This is illegal since 
+\begin{enumerate}
+    \item there are only two universes in $F_1$, just $*$ and $* \rightarrow *$.
+    \item Certainly this isn't a member of $*$, since it contains parts of $F_1$.
+    \item it can't be in $F_1$, since members of $F_1$ can only take members of $*$ as arguments.
+\end{enumerate}
+So we need to generalize to $F_2$.
+Let's do this \textit{to exhaustion}.
+
+\section{$F_\omega$}
+The idea is to define $F_{n+1}$ as follows. The universe $n+1$ is the term terms\[
+  \alpha \Rightarrow t
+\]
+such that for any $k$ in universe $\leq n$, $t[\alpha := k]$ is in universe $n$.
+So now we can build $(* \rightarrow *) \rightarrow (* \rightarrow *)$, which is the type of monad transformers.
+In fact, we can build all sorts fun things. Note that the distinction between kinds and universes shows up here, since 
+\[
+  * \rightarrow (* \rightarrow *) \quad\text{and}\quad (* \rightarrow *) \rightarrow (* \rightarrow *)
+\]
+are both in universe 2. 
+Then we define higher-kinded type application the same way. 
+Given kinds $k_1$ and $k_2$, and types $t : k_1 \rightarrow k_2$ and $t' : k_1$, we define $t\, t'$ as $t[\alpha := t']$.
+And then a simple induction proves that this has kind $k_2$.
+
+So finally, we can define $F_\omega$ as the the union of $F_n$. 
+Or, more formally for any category theorist, we observe that $F_n$ embeds in $F_{n+1}$.
+So we can take a categorical limit.
+
+The upshot is we can now define \textit{any} type level operator we want, with parameters coming from anywhere. But we have to be careful. What happens to type-checking? What happens to inference? Is this confluent, normalizing, etc?
+\begin{enumerate}
+    \item Hindle-Milner$_\omega$ type checks the same way. Basically any term only has finitely many universes, so it's not that bad.
+    \item Of course things normalize, we haven't changed any terms! All of the terms of System F have types whose kind is $*$.
+    \item There are still theorems for free. Since all terms of of type $*$ this isn't interesting.
+\end{enumerate}
+
+\section{Church Encodings in $F_\omega$}
+Last time we saw church encodings for $*$ kinded types with no recursion. 
+This generalizes easily to $k_1 \rightarrow *$, like we saw with \hask{Maybe}.
+
+But we can now finally address the question of recursive ADTs.
+
+The first thing we do is \textbf{continuation passing transform at the type level}.
+That is, we will first perform a ``haskell-to-haskell" data transform.
+Add an extra type parameter, and replace every recursive call with that parameter.
+\[
+ \hask{List t = Emp | t : List t} \quad\longrightarrow\quad \hask{ListK t r = Emp | t : r}
+\]
+Now we can encode \hask{ListK} the standard way 
+\[
+  ListK := t \Rightarrow r \Rightarrow \forall \alpha, \alpha \rightarrow (t \rightarrow r \rightarrow \alpha) \rightarrow \alpha
+\]
+
+The short version is to replace $r$ with $\alpha$.
+If this is a bit unsatisfying, that ok.
+The interesting thing is that the result from before holds.  
+If you add the corresponding constructors and elimination rules to System F, you'll find an isomorphism.
+
+\section{Folding over anything}
+This leads to a series of important features in system $F_\omega$.
+The classic church numerals are now well-motivated.
+That is 
+\[
+  \forall \alpha, (\alpha \rightarrow \alpha) \rightarrow \alpha \rightarrow \alpha
+\]
+is exactly the encoding of 
+\[
+\hask{data Nat = S nat | Zero}
+\]
+So system F knows about arithmetic.
+In fact for any of these structures, the church encodings define ``foreach loops" that respect the structure of the data.
+They are guaranteed to terminate. 
+So we have loops, but also termination guarantees.
+This leads to the rather critical code design point: don't use general recursive when a church encoding will suffice. 
+
+We can also now talk about the haskell type \hask{Functor}.
+Given a $t : * \rightarrow *$, we equip it with an 
+\[
+  fmap : \forall \alpha, \forall \beta, (\alpha \rightarrow \beta) \rightarrow t \alpha \rightarrow t\beta
+\]
+
+Along with laws that 
+\[
+   fmap\; id = id\quad\text{and}\quad fmap (f \circ g) = fmap\; f \circ fmap\; g
+\]
+Oddly, these are exactly the theorems for free for $t$. 
+\section{A Moment of Reflection}
+We have now pretty much defined the core of the ML/Haskell languages.
+We've build the main objects of study in lambda calculus, although many more extensions are possible and interesting. 
+And while we often talk about trading off expressiveness for analyzability, we have broken that down along several dimensions
+\begin{enumerate}
+    \item Confluence (I want evaluation to have a unique meaning)
+    \item Normalization (I want things to terminate)
+    \item Loops (I want to iterate over things)
+    \item Term Polymorphism (I want only one identity function)
+    \item Type Polymorism AKA Universes (I want only one List type)
+    \item Impredicativity (I want a type with a ``forall types" in it)
+    \item Principal types (I want to say "the type" of a term, not "a type")
+    \item Type computations (I want the computer to tell me "the" type)
+\end{enumerate}
+The idea is that we can make more careful judgements about what kind of expresivity is needed, and where the tradeoffs can be made when designing a language.
+
+\end{document}
+
