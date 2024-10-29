@@ -155,7 +155,7 @@ That is, rewriting according to the equation
 \[
   \hask{f (fix f) = fix f}
 \]
-That ``optimized" term will be in system F.
+That ``optimized" term will have the right shape for the elimination rule of \hask{b}.
 
 But in general for this typeclass there's no reason to expect this good behavior.
 And there's no clear way to enforce it.
@@ -175,28 +175,33 @@ So that we can do arbirtary church encodings!
 But we said what was so special about the church encoding was that there is an isomorphism.
 So how do we go the other way? 
 \begin{minted}{haskell}
-class Functor b => CoFAlgebra (t :: *) (b :: * -> *) | t -> b  where
+class Functor b => FCoAlgebra (t :: *) (b :: * -> *) | t -> b  where
   embed :: b t -> t
 \end{minted}
 
 As before, all our recursive ADTs have one of these.
 Additionally, we can write
 \begin{minted}{haskell}
-ana :: (CoFAlgebra t b) => (b a -> a) -> t -> a
+ana :: (FCoAlgebra t b) => (b a -> a) -> t -> a
 ana g = fix (\k -> embed . fmap k . g)
 
-churchDecode :: (forall a. (Base t a -> a) -> a) -> t
+churchDecode :: (FCoAlgebra t b) => (forall a. (Base t a -> a) -> a) -> t
 churchDecode ch = ch embed
 \end{minted}
 
 Note we don't actually need the \hask{ana} to observe the isomorphism.
-However, having both \hask{ana} and \hask{cata} lets us do the somewhat magical.
-Whenever we have a pair of types which share a auxillary structure, we can write
+Instead, we just need that 
+\[
+  \hask{project . embed = id} \quad \text{and} \quad \hask{embed . project = id}
+\]
+This law will also hold for the standard structures on ADTs.
+
+Whenever we have a pair of types which share a auxiliary structure, we can write
 \begin{minted}{haskell}
 hylo :: Functor f => (f b -> b) -> (a -> f a) -> a -> b
 hylo f g = fix (\k -> f . fmap k . g)
 \end{minted}
-which entirely bypasses the algebra structure!
+which entirely bypasses the algebra structure altogether!
 So if we are first building up a structure via \hask{f b -> b} like an coalgebra, then breaking it down via \hask{a -> f a} like an algebra, we can do both at once!
 
 This way we never actually construct the intermediate structure, effectively fusing the operations. An interesting quirk! 
